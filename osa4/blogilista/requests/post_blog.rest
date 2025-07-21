@@ -1,0 +1,10 @@
+POST http://localhost:3003/api/blogs/
+Content-Type: application/json
+Accept: application/json
+
+{
+  "title": "uusiBlogi",
+  "author": "vsCode Tester",
+  "url": "http://google.fi",
+  "likes": 22
+}
