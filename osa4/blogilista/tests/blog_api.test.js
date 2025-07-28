@@ -5,6 +5,13 @@ const app = require('../app')
 const assert = require('node:assert')
 const Blog = require('../models/blog')
 
+const helper = require('./test_helper')
+const bcrypt = require('bcrypt')
+
+const User = require('../models/user')
+const jwt = require('jsonwebtoken')
+
+
 const api = supertest(app)
 
 const initialBlogs = [
@@ -22,12 +29,38 @@ const initialBlogs = [
     }
 ]
 
+let token = null
+let testUser = null
+
 beforeEach(async () => {
     await Blog.deleteMany({})
-    let blogObject = new Blog(initialBlogs[0])
-    await blogObject.save()
-    blogObject = new Blog(initialBlogs[1])
-    await blogObject.save()
+    await User.deleteMany({})
+
+    const passwordHash = await bcrypt.hash('testpassword', 10)
+    const user = new User({
+        username: 'testuser',
+        name: 'Test User',
+        passwordHash,
+        blogs: []
+    })
+    testUser = await user.save()
+
+    const userForToken = {
+        username: testUser.username,
+        id: testUser._id
+    }
+    token = jwt.sign(userForToken, process.env.SECRET)
+
+    for (let blogData of initialBlogs) {
+        const blog = new Blog({
+            ...blogData,
+            user: testUser._id
+        })
+        const savedBlog = await blog.save()
+        testUser.blogs = testUser.blogs.concat(savedBlog._id)
+    }
+
+    await testUser.save()
 })
 
 test('Right amount of blogs are returned', async () => {
@@ -54,6 +87,7 @@ test('a blog  can be added', async() => {
 
     await api
         .post('/api/blogs')
+        .set('Authorization', `Bearer ${token}`)
         .send(newBlog)
         .expect(201)
         .expect('Content-Type', /application\/json/)
@@ -77,6 +111,7 @@ test('the likes is 0 if not given', async() => {
 
     await api
         .post('/api/blogs')
+        .set('Authorization', `Bearer ${token}`)
         .send(newBlog)
         .expect(201)
         .expect('Content-Type', /application\/json/)
@@ -97,6 +132,7 @@ test('blog without title or url is not added', async () => {
 
   await api
     .post('/api/blogs')
+    .set('Authorization', `Bearer ${token}`)
     .send(newBlog)
     .expect(400)
 
@@ -112,6 +148,7 @@ test('Deletion of blog succeeds with 204 if id is valid', async () => {
 
     await api
         .delete(`/api/blogs/${blogToDelete.id}`)
+        .set('Authorization', `Bearer ${token}`)
         .expect(204)
 
     const blogsAtEnd = await Blog.find({})
@@ -121,6 +158,25 @@ test('Deletion of blog succeeds with 204 if id is valid', async () => {
     const titles = blogsAtEnd.map(blog => blog.title)
     assert(!titles.includes(blogToDelete.title))
 })
+
+test('adding a blog returns 401 if token not provided', async () => {
+    const newBlog = {
+        title: 'This will fail',
+        author: 'Unauthorized',
+        url: 'http://google.fi'
+    }
+
+    const result = await api
+        .post('/api/blogs')
+        .send(newBlog)
+        .expect(401)
+        .expect('Content-Type', /application\/json/)
+
+
+    const blogsAtEnd = await api.get('/api/blogs')
+    assert.strictEqual(blogsAtEnd.body.length, initialBlogs.length)
+})
+
 
 
 test('Blog can be updated', async () => {
@@ -146,6 +202,61 @@ test('Blog can be updated', async () => {
     const updatedBlogInDb = blogsAtEnd.body.find(blog => blog.id === blogToUpdate.id)
 
     assert.strictEqual(updatedBlogInDb.likes, 4)
+})
+
+
+test('creation fails with proper statuscode and message if username already taken', async () => {
+    const rootUser = {
+      username: 'root',
+      name: 'Superuser',
+      password: 'sekret'
+    }
+
+    await api
+      .post('/api/users')
+      .send(rootUser)
+
+    const usersAtStart = await helper.usersInDb()
+
+    const newUser = {
+      username: 'root',
+      name: 'hessu',
+      password: 'test',
+    }
+
+    const result = await api
+      .post('/api/users')
+      .send(newUser)
+      .expect(400)
+      .expect('Content-Type', /application\/json/)
+
+    const usersAtEnd = await helper.usersInDb()
+    assert(result.body.error.includes('expected `username` to be unique'))
+
+    assert.strictEqual(usersAtEnd.length, usersAtStart.length)
+})
+
+
+test('creation fails when the password length is under 3', async () => {
+    const usersAtStart = await helper.usersInDb()
+
+    const newUser = {
+      username: 'moi',
+      name: 'vaan',
+      password: 'te',
+    }
+
+    const result = await api
+      .post('/api/users')
+      .send(newUser)
+      .expect(400)
+      .expect('Content-Type', /application\/json/)
+
+    const usersAtEnd = await helper.usersInDb()
+    assert(result.body.error.includes('The password min length is 3'))
+
+    assert.strictEqual(usersAtEnd.length, usersAtStart.length)
+
 })
 
 
