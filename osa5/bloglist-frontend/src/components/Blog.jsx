@@ -2,10 +2,11 @@ import { useState } from 'react'
 import blogService from '../services/blogs'
 import PropTypes from 'prop-types'
 
-const Blog = ({ blog }) => {
+const Blog = ({ blog, onLike }) => {
 
   Blog.propTypes = {
-    blog: PropTypes.object.isRequired
+    blog: PropTypes.object.isRequired,
+    onLike: PropTypes.func
   }
 
 
@@ -32,6 +33,9 @@ const Blog = ({ blog }) => {
     const updatedBlog = { ...blog, likes: newLikes }
     try {
       await blogService.update(blog.id, updatedBlog)
+      if (onLike) {
+        onLike() // For testing
+      }
     } catch (error) {
       console.error('Failed to update blog:', error)
     }
@@ -51,13 +55,13 @@ const Blog = ({ blog }) => {
   return (
 
     <div style={blogStyle}>
-      <div style={hideWhenVisible}>
+      <div style={hideWhenVisible} className="togglableTitle">
         <p>
           {blog.title}
           <button onClick={toggleVisibility}>view</button>
         </p>
       </div>
-      <div style={showWhenVisible}>
+      <div style={showWhenVisible} className="togglableContent">
         <p>
           {blog.title}
           <button onClick={toggleVisibility}>hide</button>
