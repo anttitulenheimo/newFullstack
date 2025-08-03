@@ -3,14 +3,7 @@ Content-Type: application/json
 Accept: application/json
 
 {
-  "username": "test",
-  "name": "t f",
-  "password": "k123"
-}
-
-/*
-{
   "username": "mluukkai",
   "name": "Matti Luukkainen",
   "password": "ok123"
-}*/
+}

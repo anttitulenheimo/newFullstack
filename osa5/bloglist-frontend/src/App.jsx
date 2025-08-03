@@ -91,6 +91,10 @@ const App = () => {
     }
   }
 
+  const deleteBlog = (blogId) => {
+    setBlogs(blogs.filter(blog => blog.id !== blogId))
+  }
+
 
   if (user === null) {
     return (
@@ -105,6 +109,7 @@ const App = () => {
               type="text"
               value={username}
               name="Username"
+              data-testid='username'
               onChange={({ target }) => setUsername(target.value)}
             />
           </div>
@@ -114,6 +119,7 @@ const App = () => {
               type="password"
               value={password}
               name="Password"
+              data-testid='password'
               onChange={({ target }) => setPassword(target.value)}
             />
           </div>
@@ -136,10 +142,9 @@ const App = () => {
       </Togglable>
 
       {blogs
-        .filter(blog => blog.user && blog.user.username === user.username)
-        .sort((a, b) => a.likes - b.likes)
+        .sort((a, b) => b.likes - a.likes)
         .map(blog =>
-          <Blog key={blog.id} blog={blog} />
+          <Blog key={blog.id} blog={blog} user={user} onDelete={deleteBlog}/>
         )}
     </div>
   )
